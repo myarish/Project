@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Brooklyn Rodents by Location</title>
+	<meta charset="utf-8" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+	<link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" /> <!--necessary for using Leaflet-->
+	<link rel="stylesheet" href="http://leaflet.github.io/Leaflet.markercluster/dist/MarkerCluster.css" /> <!--necessary for marker cluster plugin-->
+	<link rel="stylesheet" href="stylesheet.css" /> <!--for markers-->
+	
+	<link href="http://netdna.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.css" rel="stylesheet">
+	
+	<style>
+		html, body { height: 100%; width: 100%; margin: 0; }
+		
+		#map { 
+			height: 100%; 
+			width: 100%;
+		}
+		
+		.info {
+			padding: 8px 18px;
+			background: snow;
+			background: rgba(255,255,250,1);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+		
+		.info h4, .info h3, .info h2 {
+			margin: 0px;
+		}
+		
+		.lame {
+			margin-right: 8px;
+			vertical-align: middle;
+			display: inline-block;
+			
+		}
+		
+		.legend {
+			font: 14px/16px Arial, Helvetica, sans-serif;
+		}
+		
+	</style>
+	
+	
+</head>
+<body>
+	<div id="map"></div>
+
+	<script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script> <!--necessary for using Leaflet-->
+	<script src='https://rawgithub.com/leaflet-extras/leaflet-providers/gh-pages/leaflet-providers.js' type='text/javascript'></script> <!--necessary for using Leaflet providers base maps-->
+	<script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+	<script src="http://leaflet.github.io/Leaflet.markercluster/dist/leaflet.markercluster-src.js"></script> <!--necessary for marker cluster plugin-->
+	
+	<script>
+	
+		var zoom = 12; //set zoom level here
+		var center = [40.650002, -73.949997]; //set center coordinates here [latitude, longitude]
+		var map = L.map('map').setView(center, zoom);
+		
+		//DECLARING BASE MAP/
+		var provider_name = "Stamen.Toner"; //enter provider name here
+		L.tileLayer.provider(provider_name).addTo(map); //apply title layer
+		
+		map.attributionControl.setPrefix('311 Complaints via NYC OpenData'); //add data source to map's attribute text
+		
+		var complaint_boro = "Brooklyn"; //enter selected borough here
+		var complaint_type = "Rodent"; //enter complaint type here
+		
+		var cat_field = "location_type"; //category field... either descriptor or location_type
+		
+		//set-up dates for complaints placed within past 6 days
+		var start_date = new Date();
+			//start_date.setDate(start_date.getDate()-6);
+			start_date.setYear(start_date.getFullYear()-1);
+		var end_date = new Date();	
+		
+		var the_URL = "https://data.cityofnewyork.us/resource/erm2-nwe9.json"; 
+		//API Access Endpoint
+			the_URL += "?"; //a query parameter name is preceded by the question mark
+			the_URL += "$where="; //Filters the rows to be returned
+			the_URL += "(latitude IS NOT NULL)"; //only return records with coordinates
+			the_URL += " AND ";
+			the_URL += "(borough='" + complaint_boro + "')"; //borough of interest
+			the_URL += " AND ";
+			the_URL += "(complaint_type='" + complaint_type + "')"; //desired two complaint types nested within parentheses
+			the_URL += " AND ";
+			the_URL += "(created_date>='" + f_date(start_date, 'y_mm_dd') + "') AND (created_date<='" + f_date(end_date, 'y_mm_dd') + "')"; //date range
+			the_URL += "&$group=complaint_type,location_type,incident_address,borough,incident_zip,latitude,longitude"; //fields to group by
+			the_URL += "&$select=complaint_type,location_type,incident_address,borough,incident_zip,latitude,longitude,count(*)"; //fields to return
+	
+			the_URL = encodeURI(the_URL); //encode special characters such as spaces and quotes
+		
+		
+		$.getJSON(the_URL, function (json) {
+		
+			//console.log(json.length); //1000 record limit with SODA API
+			
+			//create distinct array of all location types
+			var marker_array = [];
+			var desc_array = $.distinct($.map( json, function( d, i ) { return d[cat_field]; }));
+			//console.log(desc_array); //use this to preview the classes
+			
+			//create symbols object
+			//assign Font Awesome icon classes... see http://fortawesome.github.io/Font-Awesome/icons/
+			//assign marker style via class... see marker_styles.css
+			var symbols = {};
+				
+				symbols["1-2 Family Dwelling"]={icon:"fa-home",color:"my_marker0"};
+				symbols["1-2 Family Mixed Use Building"]={icon:"fa-home",color:"my_marker0"};
+				symbols["3+ Family Apt. Building"]={icon:"fa-building",color:"my_marker0"};
+				symbols["3+ Family Mixed Use Building"]={icon:"fa-building",color:"my_marker0"};
+				symbols["Catch Basin/Sewer"]={icon:"fa-circle",color:"my_marker0"};
+				symbols["Commercial Building"]={icon:"fa fa-money",color:"my_marker0"};
+				symbols["Construction Site"]={icon:"fa-gavel",color:"my_marker0"};
+				symbols["Day Care/Nursery"]={icon:"fa-child",color:"my_marker0"};
+				symbols["Government Building"]={icon:"fa-institution",color:"my_marker0"};
+				symbols["Hospital"]={icon:"fa fa-h-square",color:"my_marker0"};
+				symbols["Office Building"]={icon:"fa fa-briefcase",color:"my_marker0"};
+				symbols["Other (Explain Below)"]={icon:"fa fa-pencil",color:"my_marker0"};
+				symbols["Parking Lot/Garage"]={icon:"fa fa-car",color:"my_marker0"};
+				symbols["Public Garden"]={icon:"fa-tree",color:"my_marker0"};
+				symbols["Public Stairs"]={icon:"fa fa-level-up",color:"my_marker0"};
+				symbols["School/Pre-School"]={icon:"fa fa-graduation-cap",color:"my_marker0"};
+				symbols["Single Room Occupancy (SRO)"]={icon:"fa fa-suitcase",color:"my_marker0"};
+				symbols["Vacant Building"]={icon:"fa fa-question",color:"my_marker0"};
+				symbols["Vacant Lot"]={icon:"fa fa-question",color:"my_marker0"};
+				
+				
+			
+			//iterate through 311 Service Requests JSON URL
+			$.each(json, function(c, c_data){
+			
+				var this_icon, this_color;
+			
+					//assign default symbology to unknown location types
+					if (symbols[c_data[cat_field]]){
+						this_icon = symbols[c_data[cat_field]].icon;
+						this_color = symbols[c_data[cat_field]].color;
+					}
+					else {
+						this_icon = symbols[c_data["Other (Explain Below)"]].icon;
+						this_color = symbols[c_data["Other (Explain Below)"]].color;
+					}
+			
+					//create symbol for each record
+					var my_symbol = L.divIcon({
+						className: 'my_marker ' + this_color, //symbol color
+						iconSize: null, 
+						html: '<i class="fa ' + this_icon + '"></i>'  //symbol icon
+					});
+					
+					//create pop-up html content
+					var popup_html = c_data.complaint_type; 
+						popup_html += "<br>";
+						popup_html += c_data.location_type;
+						popup_html += "<br>";
+						popup_html += c_data.count + " complaint(s) at this location";
+						popup_html += "<br>";
+						popup_html += c_data.incident_address;
+						popup_html += "<br>";
+						popup_html += c_data.borough + ", NY " + c_data.incident_zip;
+					
+					//create marker
+					var mark=L.marker([c_data.latitude, c_data.longitude], {icon: my_symbol}).bindPopup(popup_html);
+					
+					//add marker to array
+					marker_array.push(mark);
+				
+			});
+			
+			//add marker array to layer group... all markers will be treated as one layer
+			var marker = new L.layerGroup(marker_array);
+			
+			//Custom radius and icon create function
+			var markers = L.markerClusterGroup({
+				iconCreateFunction: function (cluster) {
+					var childCount = cluster.getChildCount();
+					var c = ' marker-cluster-'; 
+					var sz = 40; //use for symbolizing by size
+					
+					if (childCount < 10) {
+						c += 'small';
+						sz = 30; //comment out if using uniform size marker clusters
+					} else if (childCount < 100) {
+						c += 'medium';
+						sz = 40; //comment out if using uniform size marker clusters
+					} else {
+						c += 'large';
+						sz = 50; //comment out if using uniform size marker clusters
+					}
+					
+					//create leaflet marker cluster symbol
+					return new L.DivIcon({ html: '<div><span>' + childCount + '</span></div>', className: 'marker-cluster' + c, iconSize: new L.Point(sz, sz) });
+				}
+			});
+			
+			//add marker layer group to marker cluster group
+			markers.addLayer(marker);
+			
+			//add marker cluster layer to map
+			map.addLayer(markers);
+			
+			//zoom map to markers layer extent
+			map.fitBounds(markers.getBounds());
+			
+			//add scale bare
+			L.control.scale().addTo(map);
+			
+			//build legend
+			var legend = L.control({position: 'topleft'}); //possible positions: topleft, bottomleft, topright, bottomright
+			
+			//legend function
+			legend.onAdd = function (map) {
+				//declare legend div html
+				var div = L.DomUtil.create('div', 'info');
+				
+				//add legend title
+				div.innerHTML = "<h2>Brooklyn Rodents by Location</h2>";
+				div.innerHTML += "<h3>311 Service Requests</h3>"; 
+				div.innerHTML += "<h4>" + f_date(start_date, '/') + " to " + f_date(end_date, '/') + "</h4>";
+				
+				//iterate through symbols object
+				$.each(symbols, function(key, value) {
+					div.innerHTML += '<div>';
+					div.innerHTML += '<div class="lame"><div class="my_marker my_marker0"><i class="fa ' + value.icon + '"></i></div></div>';
+			
+					div.innerHTML += '<div class="lame legend">' + key + '</div>';
+					div.innerHTML += '</div>';
+				});
+				
+				return div;
+			};
+			
+			//add legend to map
+			legend.addTo(map);
+		});
+	
+	
+	
+	//function to return distinct function
+	$.extend({
+		distinct : function(anArray) {
+			var result = [];
+			$.each(anArray, function(i,v){ if ($.inArray(v, result) == -1) result.push(v); });
+			return result;
+		}
+	});
+	
+	function f_date(the_date, d_style){
+		var dd = ('0' + the_date.getDate()).slice(-2);
+		var mm = ('0' + (the_date.getMonth() + 1)).slice(-2);
+		var y = the_date.getFullYear();
+	
+		return (d_style == "y_mm_dd")? y + '-' + mm + '-' + dd: mm + '/'+ dd + '/' + y;
+	}
+	
+	
+	</script>
+</body>
+</html>
